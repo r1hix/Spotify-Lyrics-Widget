@@ -5,6 +5,7 @@ Built with React, styled-components, and AppleScript for macOS.
 
 ![screenshot](player_screenshot.png)
 ![screenshot0](lyrics_screenshot.png)
+![screenshot1](colored_lyrics_screenshot.png)
 
 ---
 
@@ -12,6 +13,8 @@ Built with React, styled-components, and AppleScript for macOS.
 
 * 🎶 **Real-time Spotify playback info** (track, artist, album, artwork)
 * 🧾 **Synced lyrics display** via [lrclib.net](https://lrclib.net)
+* 🎨 Dynamic Lyric Colors that automatically extract and adapt to the dominant color of the current album artwork
+* 💾 Persistent Lyrics Cache saves previously fetched lyrics to local storage for instant, rate-limit-free loading on repeat listens
 * 🎛️ **Playback controls** (previous, play/pause, next)
 * 💨 **Animated lyrics** that auto-scroll in sync with the song
 * 🌫️ **Modern glassy design** with smooth fade and blur effects
@@ -48,6 +51,9 @@ You can adjust layout and refresh behavior directly in the code:
 | Option | Default | Description |
 | :--- | :--- | :--- |
 | `isSquareLayout` | `false` | Switch between wide and 1:1 layout |
+| `MAX_CACHE_SIZE` | `50` | Maximum number of parsed song lyrics to keep saved in local storage |
+| `useAlbumColorForLyrics` | `true` | If true, active lyrics will use the dominant color of the album art for styling |
+| `defaultLyricsColor` | `#fff` | Fallback color if useAlbumColorForLyrics is set to disabled |
 | `refreshFrequency` | `1000ms` (playing) / `30000ms` (paused) | Adjusts how often data updates |
 
 ---
@@ -57,6 +63,8 @@ You can adjust layout and refresh behavior directly in the code:
 * Uses **AppleScript** to communicate with the Spotify app.
 * Periodically fetches song data (title, artist, album, artwork).
 * Requests synced lyrics from **LRCLIB.net**.
+* Caches fetched lyrics locally in the browser's localStorage for instant, offline retrieval.
+* Extracts the dominant color of the cover art on-the-fly using a microscopic HTML5 Canvas.
 * Smoothly animates lyric lines in time with the current playback position.
 
 ---
@@ -79,7 +87,7 @@ Feel free to modify and improve — credit is appreciated.
 
 ## 💬 Author
 
-Created by **RIHIx**.
+Created by **r1hix**.
 If you enjoy this widget, a ⭐ on GitHub would be awesome!
 
 ---
@@ -87,6 +95,4 @@ If you enjoy this widget, a ⭐ on GitHub would be awesome!
 ## ⚡ Future Ideas
 
 * Support for Apple Music
-* Manual lyric syncing fallback
-* Theme color adaptation from album art
 * Compact mini-player mode

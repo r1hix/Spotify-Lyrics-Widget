@@ -3,6 +3,8 @@ import { run, React, styled } from "uebersicht";
 // - WIDGET SETTINGS -
 const isSquareLayout = false; // Set to true for 1:1 player
 const MAX_CACHE_SIZE = 50;    // Nax number of songs to keep in memory
+const useAlbumColorForLyrics = true; // If true, lyrics will use the dominant color of the album art for styling
+const defaultLyricsColor = '#fff'; // Fallback color for lyrics if album art color can't be determined or is disabled
 
 // - APPLE SCRIPT -
 export const command = `
@@ -188,9 +190,14 @@ const LyricLine = styled("p")`
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
   transition: all 0.6s cubic-bezier(0.25, 1, 0.5, 1);
   ${(props) => props.isCurrent && `
-    opacity: 1; filter: none; font-size: 28px; transform: scale(1.05);
-  `}
-`;
+      opacity: 1; 
+      filter: none; 
+      font-size: 28px; 
+      transform: scale(1.05);
+      color: ${props.activeColor || '#fff'};
+      text-shadow: 0 0 20px ${props.activeColor || 'rgba(255,255,255,0.5)'}, 0 2px 4px rgba(0,0,0,0.8);
+    `}
+  `;
 
 const LyricsStatus = styled("div")`
   font-size: 18px;
@@ -220,6 +227,23 @@ const parseLRC = (lrcText) => {
     const time = parseInt(minutes) * 60 + parseInt(seconds) + parseInt(milliseconds) / 1000;
     return { time, text: text.trim() }; // Trim whitespaces 
   }).filter(Boolean);
+};
+
+const getAverageColor = (imageUrl, callback) => {
+  if (!imageUrl) return callback('#fff');
+  const img = new Image();
+  img.crossOrigin = "Anonymous";
+  img.onload = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1;
+    canvas.height = 1;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, 1, 1);
+    const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
+    callback(`rgb(${r}, ${g}, ${b})`);
+  };
+  img.onerror = () => callback('#fff');
+  img.src = imageUrl;
 };
 
 // - LYRICS CACHE -
@@ -297,13 +321,14 @@ const fetchLyrics = async (track, artist, callback) => {
 const SpotifyWidget = ({ output }) => {
   const [lyricsVisible, setLyricsVisible] = React.useState(true);
   const [lyrics, setLyrics] = React.useState({ status: 'Loading...', lines: [] });
+  const [dominantColor, setDominantColor] = React.useState('#fff');
   
   // Ref to hold the pause timer ID
   const pauseTimer = React.useRef(null);
 
   const [trackName, artistName, albumName, albumArt, playerState, positionStr] = output.split("%%");
   const position = parseFloat(positionStr);
-
+  
   // - UPDATE LYRICS -
   React.useEffect(() => {
     if (!lyricsCache.has(`${trackName}-${artistName}`)) {
@@ -321,12 +346,22 @@ const SpotifyWidget = ({ output }) => {
     if (playerState === 'paused' && lyricsVisible) {
       pauseTimer.current = setTimeout(() => {
         setLyricsVisible(false);
-      }, 60000); 
+      }, 60000); // 60 seconds
     }
-
+    
     // Cleanup function to clear timer on next effect run
     return () => clearTimeout(pauseTimer.current);
   }, [playerState, lyricsVisible]);
+
+  // - GET DOMINANT COLOR FROM ALBUM ART -
+  React.useEffect(() => {
+    if (useAlbumColorForLyrics && albumArt && albumArt.startsWith('http')) {
+      getAverageColor(albumArt, setDominantColor);
+    } else {
+      setDominantColor(defaultLyricsColor); // Fallback if disabled or no art
+    }
+  }, [albumArt]);
+
 
   const showAlbumName = trackName.toLowerCase() !== albumName.toLowerCase() && !albumName.toLowerCase().includes('single');
   const playPauseIcon = playerState === 'playing' ? IconPause : IconPlay;
@@ -367,7 +402,7 @@ const SpotifyWidget = ({ output }) => {
           <LyricsWindow>
             <LyricsSlider offset={offset}>
               {lyrics.lines.map((line, i) => (
-                <LyricLine key={`${line.time}-${i}`} isCurrent={i === currentIndex}>
+                <LyricLine key={`${line.time}-${i}`} isCurrent={i === currentIndex} activeColor={dominantColor}>
                   {line.text || "\u00A0"}
                 </LyricLine>
               ))}
