@@ -2,6 +2,7 @@ import { run, React, styled } from "uebersicht";
 
 // - WIDGET SETTINGS -
 const isSquareLayout = false; // Set to true for 1:1 player
+const MAX_CACHE_SIZE = 50;    // Nax number of songs to keep in memory
 
 // - APPLE SCRIPT -
 export const command = `
@@ -221,20 +222,74 @@ const parseLRC = (lrcText) => {
   }).filter(Boolean);
 };
 
-// - LYRICS FETCH -
+// - LYRICS CACHE -
+const CACHE_KEY = 'spotify-lyrics-cache-v1';
+
+let initialCache = [];
+if (typeof window !== 'undefined' && window.localStorage) {
+  try {
+    const stored = window.localStorage.getItem(CACHE_KEY);
+    if (stored) initialCache = JSON.parse(stored);
+  } catch (e) {
+  }
+}
+
+const lyricsCache = new Map(initialCache);
+
+const saveCacheToStorage = () => {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      const jsonStr = JSON.stringify(Array.from(lyricsCache.entries()));
+      window.localStorage.setItem(CACHE_KEY, jsonStr);
+    } catch (e) {
+    }
+  }
+};
+
 const fetchLyrics = async (track, artist, callback) => {
+  const cacheKey = `${track}-${artist}`;
+
+  // Check cache first
+  if (lyricsCache.has(cacheKey)) {
+    const cachedLyrics = lyricsCache.get(cacheKey);
+    // Move to front (most recently used)
+    lyricsCache.delete(cacheKey);
+    lyricsCache.set(cacheKey, cachedLyrics);
+    saveCacheToStorage(); // Save the new order
+    
+    callback({ status: '', lines: cachedLyrics });
+    return;
+  }
+
+// Fetch from API if not in cache
   try {
     const url = `https://lrclib.net/api/get?track_name=${encodeURIComponent(track)}&artist_name=${encodeURIComponent(artist)}`;
     const response = await fetch(url);
     if (!response.ok) throw new Error('API request failed');
     const data = await response.json();
+    
     if (data && data.syncedLyrics) {
         const parsedLyrics = parseLRC(data.syncedLyrics);
-        if (parsedLyrics.length > 0) callback({ status: '', lines: parsedLyrics }); // Successful
-        else throw new Error('Synced lyrics format was invalid.');
+        if (parsedLyrics.length > 0) {
+
+            if (lyricsCache.size >= MAX_CACHE_SIZE) {
+               const oldestKey = lyricsCache.keys().next().value;
+               lyricsCache.delete(oldestKey);
+            }
+            
+            lyricsCache.set(cacheKey, parsedLyrics);
+            saveCacheToStorage();
+            
+            callback({ status: '', lines: parsedLyrics }); 
+
+        } else throw new Error('Synced lyrics format was invalid.');
     } else throw new Error('No synced lyrics found for this track.');
   } catch (error) {
-    callback({ status: error.message, lines: [] });
+    if (lyricsCache.has(cacheKey)) {
+      callback({ status: '', lines: lyricsCache.get(cacheKey) });
+    } else {
+      callback({ status: 'Could not load lyrics', lines: [] });
+    }
   }
 };
 
@@ -251,7 +306,9 @@ const SpotifyWidget = ({ output }) => {
 
   // - UPDATE LYRICS -
   React.useEffect(() => {
-    setLyrics({ status: `Fetching lyrics for "${trackName}"...`, lines: [] });
+    if (!lyricsCache.has(`${trackName}-${artistName}`)) {
+        setLyrics({ status: `Fetching lyrics for "${trackName}"...`, lines: [] });
+    }
     fetchLyrics(trackName, artistName, setLyrics);
   }, [trackName, artistName]);
 
@@ -264,7 +321,7 @@ const SpotifyWidget = ({ output }) => {
     if (playerState === 'paused' && lyricsVisible) {
       pauseTimer.current = setTimeout(() => {
         setLyricsVisible(false);
-      }, 60000); // 60 seconds
+      }, 60000); 
     }
 
     // Cleanup function to clear timer on next effect run
@@ -280,7 +337,7 @@ const SpotifyWidget = ({ output }) => {
     if (currentIndex < -1) currentIndex = -1;
     else if (currentIndex === -2) currentIndex = lyrics.lines.length - 1;
   }
-  const offset = -(currentIndex * 40) + (120 / 2) - (40 / 2); // Center current line (depending on line height)
+  const offset = -(currentIndex * 40) + (120 / 2) - (40 / 2); 
   
   return (
     <>
