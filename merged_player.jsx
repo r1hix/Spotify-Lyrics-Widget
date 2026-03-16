@@ -50,7 +50,7 @@ const PlayerContainer = styled('div')`
   color: #fff;
   background: rgba(0, 0, 0, 0.25);
   backdrop-filter: blur(12px);
-  border-radius: 12px;
+  border-radius: 16px;
   padding: 15px;
   width: 400px;
   height: 180px;
@@ -285,7 +285,7 @@ const getVibrantColor = (imageUrl, callback) => {
       const r = data[i], g = data[i+1], b = data[i+2], a = data[i+3];
       if (a < 128) continue; // skip transparent
       const [h, s, l] = rgbToHsl(r, g, b);
-      // Bell curve on lightness: peak score at l=0.5, near-zero at l<0.1 or l>0.9
+      // Bell Curve: Peak score at l=0.5, near-zero at l<0.1 or l>0.9
       const lightScore = 1 - Math.abs(l - 0.5) * 2;
       const score = s * lightScore; // weight saturation heavily
       if (score > 0.05) candidates.push({ h, s, l, score, r, g, b });
