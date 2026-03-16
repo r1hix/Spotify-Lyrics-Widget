@@ -4,6 +4,7 @@ import { run, React, styled } from "uebersicht";
 const isSquareLayout = false; // Set to true for 1:1 player
 const MAX_CACHE_SIZE = 50;    // Nax number of songs to keep in memory
 const useAlbumColorForLyrics = true; // If true, lyrics will use the dominant color of the album art for styling
+const useVibrantColor = true; // If true, uses the most vibrant color in the album art for lyrics color. If false, averages all pixels - `useAlbumColorForLyrics` must be true
 const defaultLyricsColor = '#fff'; // Fallback color for lyrics if album art color can't be determined or is disabled
 
 // - APPLE SCRIPT -
@@ -52,7 +53,7 @@ const PlayerContainer = styled('div')`
   border-radius: 12px;
   padding: 15px;
   width: 400px;
-  height: 200px;
+  height: 180px;
   transition: all 0.4s ease-in-out;
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 
@@ -103,6 +104,7 @@ const Info = styled('div')`
 
 const TrackInfo = styled('div')`
   animation: fade-in 0.4s ease-out;
+  animation-fill-mode: both;
   margin-top: 10px;
   ${(props) => props.isSquare &&`display: none;`}
 `;
@@ -197,7 +199,7 @@ const LyricLine = styled("p")`
       color: ${props.activeColor || '#fff'};
       text-shadow: 0 0 20px ${props.activeColor || 'rgba(255,255,255,0.5)'}, 0 2px 4px rgba(0,0,0,0.8);
     `}
-  `;
+`;
 
 const LyricsStatus = styled("div")`
   font-size: 18px;
@@ -230,7 +232,7 @@ const parseLRC = (lrcText) => {
 };
 
 const getAverageColor = (imageUrl, callback) => {
-  if (!imageUrl) return callback('#fff');
+  if (!imageUrl) return callback(defaultLyricsColor);
   const img = new Image();
   img.crossOrigin = "Anonymous";
   img.onload = () => {
@@ -242,7 +244,69 @@ const getAverageColor = (imageUrl, callback) => {
     const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
     callback(`rgb(${r}, ${g}, ${b})`);
   };
-  img.onerror = () => callback('#fff');
+  img.onerror = () => callback(defaultLyricsColor);
+  img.src = imageUrl;
+};
+
+const getVibrantColor = (imageUrl, callback) => {
+  if (!imageUrl) return callback(defaultLyricsColor);
+  const img = new Image();
+  img.crossOrigin = "Anonymous";
+  img.onload = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 64;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, 64, 64);
+    const data = ctx.getImageData(0, 0, 64, 64).data;
+
+    // RGB to HSL
+    const rgbToHsl = (r, g, b) => {
+      r /= 255; g /= 255; b /= 255;
+      const max = Math.max(r, g, b), min = Math.min(r, g, b);
+      let h, s, l = (max + min) / 2;
+      if (max === min)
+        h = s = 0;
+      else {
+        const d = max - min;
+        s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+        switch (max) {
+          case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
+          case g: h = ((b - r) / d + 2) / 6; break;
+          case b: h = ((r - g) / d + 4) / 6; break;
+        }
+      }
+      return [h, s, l];
+    };
+
+    // Score each pixel: prefer high saturation, penalize near-black and near-white
+    let candidates = [];
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i], g = data[i+1], b = data[i+2], a = data[i+3];
+      if (a < 128) continue; // skip transparent
+      const [h, s, l] = rgbToHsl(r, g, b);
+      // Bell curve on lightness: peak score at l=0.5, near-zero at l<0.1 or l>0.9
+      const lightScore = 1 - Math.abs(l - 0.5) * 2;
+      const score = s * lightScore; // weight saturation heavily
+      if (score > 0.05) candidates.push({ h, s, l, score, r, g, b });
+    }
+
+    if (candidates.length === 0) return callback(defaultLyricsColor);
+
+    // Sort by score, take top 10%
+    candidates.sort((a, b) => b.score - a.score);
+    const top = candidates.slice(0, Math.max(1, Math.floor(candidates.length * 0.1)));
+
+    // Average the top candidates
+    const avg = top.reduce((acc, c) => {
+      acc.r += c.r; acc.g += c.g; acc.b += c.b;
+      return acc;
+    }, { r: 0, g: 0, b: 0 });
+
+    const n = top.length;
+    callback(`rgb(${Math.round(avg.r/n)}, ${Math.round(avg.g/n)}, ${Math.round(avg.b/n)})`);
+  };
+  img.onerror = () => callback(defaultLyricsColor);
   img.src = imageUrl;
 };
 
@@ -355,11 +419,11 @@ const SpotifyWidget = ({ output }) => {
 
   // - GET DOMINANT COLOR FROM ALBUM ART -
   React.useEffect(() => {
-    if (useAlbumColorForLyrics && albumArt && albumArt.startsWith('http')) {
-      getAverageColor(albumArt, setDominantColor);
-    } else {
-      setDominantColor(defaultLyricsColor); // Fallback if disabled or no art
+    if (!useAlbumColorForLyrics || !albumArt || !albumArt.startsWith('http')) {
+      return setDominantColor(defaultLyricsColor);
     }
+    const lyricsColor = useVibrantColor ? getVibrantColor : getAverageColor;
+    lyricsColor(albumArt, setDominantColor);
   }, [albumArt]);
 
 
@@ -373,7 +437,7 @@ const SpotifyWidget = ({ output }) => {
     else if (currentIndex === -2) currentIndex = lyrics.lines.length - 1;
   }
   const offset = -(currentIndex * 40) + (120 / 2) - (40 / 2); 
-  
+
   return (
     <>
       <PlayerContainer isSquare={isSquareLayout}>

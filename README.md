@@ -35,7 +35,7 @@ Built with React, styled-components, and AppleScript for macOS.
 3.  Clone or download this repository inside that folder:
     ```bash
     cd ~/Library/Application\ Support/Übersicht/widgets/
-    git clone [https://github.com/RIHIxYT/spotify-lyrics-widget.git](https://github.com/RIHIxYT/spotify-lyrics-widget.git)
+    git clone [https://github.com/r1hix/spotify-lyrics-widget.git](https://github.com/r1hix/spotify-lyrics-widget.git)
     ```
 
 4.  Open Ubersicht and enable the widget:
@@ -53,6 +53,7 @@ You can adjust layout and refresh behavior directly in the code:
 | `isSquareLayout` | `false` | Switch between wide and 1:1 layout |
 | `MAX_CACHE_SIZE` | `50` | Maximum number of parsed song lyrics to keep saved in local storage |
 | `useAlbumColorForLyrics` | `true` | If true, active lyrics will use the dominant color of the album art for styling |
+| `useVibrantColor` | `true` | If true, uses the most vibrant color in the album art for lyrics color, otherwise averages all pixels |
 | `defaultLyricsColor` | `#fff` | Fallback color if useAlbumColorForLyrics is set to disabled |
 | `refreshFrequency` | `1000ms` (playing) / `30000ms` (paused) | Adjusts how often data updates |
 
@@ -64,7 +65,7 @@ You can adjust layout and refresh behavior directly in the code:
 * Periodically fetches song data (title, artist, album, artwork).
 * Requests synced lyrics from **LRCLIB.net**.
 * Caches fetched lyrics locally in the browser's localStorage for instant, offline retrieval.
-* Extracts the dominant color of the cover art on-the-fly using a microscopic HTML5 Canvas.
+* Extracts the dominant color of the cover art on-the-fly using a microscopic HTML5 Canvas; either the most vibrant pixel cluster or a flat average, depending on `useVibrantColor`.
 * Smoothly animates lyric lines in time with the current playback position.
 
 ---
@@ -81,18 +82,13 @@ You can adjust layout and refresh behavior directly in the code:
 ## 📜 License
 
 This project is licensed under the **MIT License**.
-Feel free to modify and improve — credit is appreciated.
+Feel free to modify and improve — credit is appreciated.  
+
+If you enjoy this widget, a ⭐ on GitHub would be awesome!
 
 ---
 
 ## 💬 Author
 
-Created by **r1hix**.
-If you enjoy this widget, a ⭐ on GitHub would be awesome!
-
----
-
-## ⚡ Future Ideas
-
-* Support for Apple Music
-* Compact mini-player mode
+Created by <a style='color: #ddddc3' href='https://github.com/r1hix'>**r1hix**</a>.  
+Version 1.2.1  
